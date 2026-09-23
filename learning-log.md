@@ -29,3 +29,28 @@ user1.sapa() // Halo Budi
 because greetFn() just coppying the user greet function, when the greetFn() running, "this" have no reference so it refers to the global object and then the output is undefined, however user.greet() work normally because greet() function was called by user object, so "this" has reference to the user object reference.
 3. why arrow function in setTimeout saving "this"? 
 because when setTimeout finished the timer set,arrow function has no "this" in default, so it will move up a level, then the arrow function found the delayedGreet function, delayedGreet from the user4 object, so "this" using the reference from user4
+
+-day 4:
+-day 4:
+1. the difference of map/filter/reduce:
+map = creating new array that each elemen was totaly change 
+filter = creating new array that each elemen is not changing but the members element change depend on condition
+reduce = creating a new single value(number, string, object, new array depend on value you choose for initVal) from all accumulation array element
+
+2. bugs found in myReduce2 v1:
+function myReduce2(arr, callback, initialValue){ //case tanpa initialvalue
+    let result = initialValue
+    let startindex = 0 
+    if(initialValue){ 
+        result = arr[0]
+        startindex = 1
+    }
+    for(let i = 0; i < arr.length; i++){
+        result = callback(result, arr[i])
+    }
+    return result
+}
+console.log(myReduce2([1, 2, 3, 4], (acc, n) => acc + n, 0)) //10
+- `if (initialValue)` fails on `0` because `0` is falsy in JS, causing initial value check to bypass completely
+- must use `initialValue === undefined` to safely check if the initial parameter was actually omitted
+- `for (let i = 0)` ignores `startindex = 1`, causing the first element (`arr[0]`) to be processed twice
