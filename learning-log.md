@@ -73,3 +73,16 @@ because **the spread operator (`...`) unpacks `arr1`'s elements into a completel
 
 ### 4. Why is spread (`{...obj}`) called a "shallow" copy, not a "deep" copy?
 because **it only copies the top-level properties; nested objects (like `obj.profile`) are still copied by reference, meaning inner objects are still shared between both instances.**
+
+-day7
+callStack = is a task that javascript execute automated sequencial
+
+microtask Queue = is a sequence task that javascript execute if callStack empty, if not empty already, microtask wait until callstack empty(promise.resolve().then())
+
+macrotask queue = same like micro but, it will wait micro to end his job then he start(setTimeout, etc)
+
+why promise go first than setTimeout?, bcs promise is considerd microtask while setTimeout considerd macrotask, micro always win, so promise go first
+
+why the function logInOrder answer is 1,2,4,5,6,3 ?
+bcs the 1,2,4,5 is a callstack, so it go first, when callstack empty micro's turn, so 6 go, then micro empty, macro's turns then 3 go, then result is  1,2,4,5,6,3
+
