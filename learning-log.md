@@ -86,3 +86,9 @@ why promise go first than setTimeout?, bcs promise is considerd microtask while 
 why the function logInOrder answer is 1,2,4,5,6,3 ?
 bcs the 1,2,4,5 is a callstack, so it go first, when callstack empty micro's turn, so 6 go, then micro empty, macro's turns then 3 go, then result is  1,2,4,5,6,3
 
+-day-8
+A Promise is an object that represents a future result and has three states: `pending`, `fulfilled`, and `rejected`.
+If you forget to `return` a value inside `.then()`, the next `.then()` receives `undefined`.
+Promise chaining passes returned values from one `.then()` to the next.
+This makes asynchronous code more linear and easier to read than deeply nested callbacks, helping avoid callback hell.
+
