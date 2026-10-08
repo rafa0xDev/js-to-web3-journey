@@ -92,3 +92,495 @@ If you forget to `return` a value inside `.then()`, the next `.then()` receives 
 Promise chaining passes returned values from one `.then()` to the next.
 This makes asynchronous code more linear and easier to read than deeply nested callbacks, helping avoid callback hell.
 
+-day-9
+# Async JavaScript — Promise Concurrency
+
+## What I Learned
+
+Hari ini belajar bagaimana beberapa Promise bisa dijalankan secara berurutan atau bersamaan, serta bagaimana `Promise.all()`, `Promise.allSettled()`, `Promise.race()`, timeout, dan race condition bekerja.
+
+---
+
+## 1. Sequential vs Parallel
+
+### Sequential
+
+Sequential berarti task kedua baru dimulai setelah task pertama selesai.
+
+```js
+delay(1000, "A")
+  .then(() => delay(1000, "B"))
+  .then(() => console.timeEnd("sequential"));
+```
+
+Alurnya:
+
+```text
+A ────────→ 1000ms
+             ↓
+B ────────→ 1000ms
+```
+
+Total:
+
+```text
+1000 + 1000 ≈ 2000ms
+```
+
+Ini cocok ketika task berikutnya membutuhkan hasil dari task sebelumnya.
+
+### Parallel
+
+Parallel berarti beberapa task yang tidak saling bergantung bisa dimulai bersamaan.
+
+```js
+Promise.all([
+  delay(1000, "A"),
+  delay(1000, "B")
+])
+```
+
+Alurnya:
+
+```text
+A ─────────→ 1000ms
+B ─────────→ 1000ms
+```
+
+Total sekitar:
+
+```text
+1000ms
+```
+
+Mental model:
+
+> Sequential = waktu task ditumpuk.
+>
+> Parallel = waktu ditentukan oleh task yang paling lama.
+
+---
+
+## 2. `Promise.all()`
+
+`Promise.all()` digunakan ketika kita ingin menunggu beberapa Promise sekaligus.
+
+```js
+Promise.all([
+  delay(1000, "A"),
+  delay(1000, "B")
+])
+```
+
+Jika semuanya fulfilled:
+
+```js
+["A", "B"]
+```
+
+Urutan hasil mengikuti urutan Promise di array, bukan urutan siapa yang selesai dulu.
+
+Contoh:
+
+```js
+Promise.all([
+  delay(1000, "A"),
+  delay(300, "B")
+])
+```
+
+Walaupun B selesai lebih dulu, hasilnya tetap:
+
+```js
+["A", "B"]
+```
+
+### Jika salah satu reject
+
+```js
+Promise.all([
+  delay(500, "ok"),
+  Promise.reject("boom"),
+  delay(1000, "ok2")
+])
+```
+
+Hasil `Promise.all()` menjadi rejected:
+
+```text
+caught: boom
+```
+
+Penting:
+
+> Satu Promise reject tidak berarti Promise lain ikut menjadi rejected.
+
+Promise lain tetap bisa berjalan. Yang reject adalah **Promise gabungan dari `Promise.all()`**.
+
+Jadi:
+
+```text
+ok     → tetap berjalan
+boom   → reject
+ok2    → tetap berjalan
+
+Promise.all()
+     ↓
+rejected
+```
+
+---
+
+## 3. `Promise.allSettled()`
+
+`Promise.allSettled()` digunakan ketika kita ingin mengetahui hasil dari **semua Promise**, baik yang berhasil maupun gagal.
+
+Contoh konsep:
+
+```text
+A → fulfilled
+B → rejected
+C → fulfilled
+```
+
+Berbeda dengan `Promise.all()` yang langsung menghasilkan rejected ketika salah satu gagal.
+
+Mental model:
+
+```text
+Promise.all()
+→ "Semua harus berhasil."
+
+Promise.allSettled()
+→ "Gue mau tahu nasib semuanya."
+```
+
+---
+
+## 4. `Promise.race()`
+
+`Promise.race()` mengambil Promise yang **settled paling dulu**.
+
+Settled berarti Promise sudah mendapatkan hasil akhir:
+
+* fulfilled
+* rejected
+
+Contoh:
+
+```js
+Promise.race([
+  delay(1000, "slow"),
+  delay(300, "fast")
+])
+```
+
+Hasil:
+
+```text
+fast
+```
+
+Karena:
+
+```text
+slow ─────────────→ 1000ms
+fast ───→ 300ms
+```
+
+Catatan penting:
+
+> `Promise.race()` tidak otomatis membatalkan Promise yang kalah.
+
+Promise yang kalah masih bisa berjalan di belakang layar.
+
+---
+
+## 5. `withTimeout()`
+
+`Promise.race()` bisa digunakan untuk membuat timeout.
+
+```js
+function withTimeout(promise, ms) {
+  const timeout = new Promise(reject => {
+    setTimeout(() => {
+      reject("timeout");
+    }, ms);
+  });
+
+  return Promise.race([
+    promise,
+    timeout
+  ]);
+}
+```
+
+Mental model:
+
+```text
+             Promise asli
+            ↗
+Promise.race()
+            ↘
+             timeout
+```
+
+Contoh:
+
+```js
+withTimeout(delay(300, "berhasil"), 500)
+```
+
+Promise asli selesai dalam 300ms, sedangkan timeout baru terjadi setelah 500ms.
+
+Maka:
+
+```text
+"berhasil"
+```
+
+Kalau:
+
+```js
+withTimeout(delay(1000, "berhasil"), 500)
+```
+
+timeout selesai dulu:
+
+```text
+"timeout"
+```
+
+Jadi:
+
+> `withTimeout()` adalah perlombaan antara Promise asli dan batas waktu.
+
+---
+
+## 6. Promise Tidak Sama dengan `Promise.all()`
+
+Hal penting yang dipahami:
+
+```js
+const a = fetch("/a");
+const b = fetch("/b");
+
+Promise.all([a, b]);
+```
+
+`Promise.all()` bukan yang membuat A dan B mulai berjalan.
+
+A mulai ketika:
+
+```js
+fetch("/a")
+```
+
+dipanggil.
+
+B mulai ketika:
+
+```js
+fetch("/b")
+```
+
+dipanggil.
+
+`Promise.all()` kemudian digunakan untuk:
+
+> Menunggu beberapa Promise dan menggabungkan hasilnya.
+
+Mental model:
+
+```text
+fetch()       → memulai pekerjaan
+Promise.all() → menunggu beberapa pekerjaan
+```
+
+---
+
+# 7. Race Condition
+
+Race condition terjadi ketika beberapa operasi async berjalan bersamaan dan selesai dalam urutan yang tidak kita inginkan.
+
+Contoh pencarian:
+
+```js
+function search(query) {
+  const ms = query === "a" ? 1000 : 200;
+
+  return delay(ms, "results for " + query);
+}
+```
+
+User mengetik:
+
+```text
+"a"
+```
+
+kemudian langsung:
+
+```text
+"ab"
+```
+
+Request:
+
+```text
+"a"  → 1000ms
+"ab" → 200ms
+```
+
+Maka:
+
+```text
+"a"  ─────────────────→ 1000ms
+"ab" ───→ 200ms
+```
+
+`"ab"` selesai duluan:
+
+```text
+currentResults = "results for ab"
+```
+
+Tetapi 800ms kemudian request lama `"a"` selesai:
+
+```text
+currentResults = "results for a"
+```
+
+Akhirnya hasil terbaru ditimpa oleh hasil lama.
+
+Ini adalah race condition.
+
+### Masalah utamanya
+
+Bukan sekadar:
+
+> "Siapa yang selesai dulu?"
+
+Tetapi:
+
+> "Apakah hasil yang baru saja datang masih merupakan hasil yang relevan dengan request terbaru?"
+
+---
+
+## 8. Closure dan Request ID
+
+Untuk memperbaiki race condition, setiap request bisa diberikan identifier.
+
+Contoh mental model:
+
+```text
+"a"  → request #1
+"ab" → request #2
+```
+
+Saat hasil datang, kita cek:
+
+```text
+request #2 selesai
+→ masih request terbaru?
+→ YES → tampilkan
+
+request #1 selesai
+→ masih request terbaru?
+→ NO → abaikan
+```
+
+Closure berguna karena callback async dapat tetap mengingat nilai yang dimiliki ketika request tersebut dibuat.
+
+Mental model:
+
+> Setiap request membawa "nomor identitasnya sendiri", lalu ketika hasilnya kembali kita cek apakah nomor itu masih yang terbaru.
+
+---
+
+# 9. Mental Model Utama
+
+```text
+Ada dependency?
+→ Sequential
+
+Tidak ada dependency?
+→ Parallel
+
+Semua harus sukses?
+→ Promise.all()
+
+Mau mengetahui hasil semuanya?
+→ Promise.allSettled()
+
+Siapa yang settled dulu?
+→ Promise.race()
+
+Promise terlalu lama?
+→ Promise.race() + timeout
+
+Request lama bisa datang setelah request baru?
+→ Race condition
+
+Bagaimana mengabaikan request lama?
+→ Identifikasi request + cek apakah masih terbaru
+```
+
+---
+
+## 10. Hal yang Sempat Salah
+
+### Salah #1 — Mengira `Promise.all()` yang membuat Promise berjalan paralel
+
+Yang benar:
+
+```text
+Promise dibuat/dipanggil
+        ↓
+task mulai
+        ↓
+Promise.all() menunggu hasil
+```
+
+`Promise.all()` bukan tombol "jalankan semua".
+
+---
+
+### Salah #2 — Mengira reject satu Promise membuat Promise lain ikut reject
+
+Yang benar:
+
+```text
+A → fulfilled
+B → rejected
+C → fulfilled
+
+Promise.all()
+     ↓
+rejected
+```
+
+A dan C tidak otomatis menjadi rejected.
+
+Yang rejected adalah Promise hasil `Promise.all()`.
+
+---
+
+### Salah #3 — Mengira `Promise.race()` hanya menangani Promise yang fulfilled
+
+Yang benar:
+
+```text
+fulfilled tercepat → menang
+rejected tercepat  → juga menang
+```
+
+`race()` melihat siapa yang **settled terlebih dahulu**.
+
+---
+
+## Teaching Snapshot
+
+> Sequential berarti task berjalan satu per satu dan task berikutnya menunggu task sebelumnya. Parallel berarti task independen dimulai bersama sehingga total waktunya kira-kira sama dengan task yang paling lama. `Promise.all()` menunggu semuanya dan gagal jika ada satu yang reject, sedangkan `Promise.allSettled()` tetap memberikan hasil semua Promise. `Promise.race()` mengambil Promise yang settled paling dulu dan bisa digunakan untuk membuat timeout. Race condition terjadi ketika hasil async lama datang terlambat dan menimpa hasil baru, sehingga kita perlu memastikan setiap hasil masih berasal dari request terbaru.
+
+
